@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Scene</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://threejs.org/examples/jsm/controls/TransformControls.js"></script>
+    <style>
+    html, body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Prevent scrollbars */
+    width: 100vw;
+    height: 100vh;
+}
+
+
+</style>
+</head>
+<body>
+    <div id="loading-screen">
+        <p>loading... if hats dont load, refresh</p>
+    </div>
+ <style>
+        #loading-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+             background: rgba(0, 0, 0, 0.5); /* Transparent grey */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Libre Franklin', sans-serif;
+            font-style: italic;
+            font-weight: bold;
+            font-size: 4em;
+            color: white;
+            opacity: 1;
+            transition: opacity 1s ease-out;
+        }
+    </style>
+    <script>
+    
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+ setTimeout(() => {
+            document.getElementById("loading-screen").style.opacity = "0"; // Start fade-out
+            
+            setTimeout(() => {
+                document.getElementById("loading-screen").style.display = "none"; // Remove after fade-out
+            }, 2000); // Matches the 1s transition time
+        }, 6000); // Delay removal by 5 seconds
+        
+    </script>
+    <script>
+    
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 300);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+const ambientLight = new THREE.AmbientLight(0xfff5e1, 1); // Very subtle ambient lighting
+scene.add(ambientLight);
+
+// --- Autonomous Neon Block System ---
+(() => {
+  const blockColors = [0xff0000, 0xffa500, 0xffff00];
+  const blockSizes = [2, 3, 4];
+  const blocks = [];
+  const gravity = new THREE.Vector3(0, -0.01, 0); // Pulls blocks down over time
+
+  function getNeonMaterial(color) {
+    return new THREE.MeshBasicMaterial({
+      color,
+      emissive: color,
+      emissiveIntensity: 1
+    });
+  }
+
+  function spawnNeonBlock() {
+    const size = blockSizes[Math.floor(Math.random() * blockSizes.length)];
+    const color = blockColors[Math.floor(Math.random() * blockColors.length)];
+    const geometry = new THREE.BoxGeometry(size, size, size);
+    const material = getNeonMaterial(color);
+    const block = new THREE.Mesh(geometry, material);
+
+    block.position.set(0, 4.883, -10.787);
+
+    // Give it an upward and forward kick
+    block.velocity = new THREE.Vector3(
+      (Math.random() - 0.4) * 0.2,
+      Math.random() * 0.3 + 0.2, // upward Y velocity
+      Math.random() * 0.1 + 0.2  // forward Z velocity
+    );
+
+    scene.add(block);
+    blocks.push(block);
+  }
+
+  function updateNeonBlocks() {
+    blocks.forEach(block => {
+      // Apply gravity
+      block.velocity.add(gravity);
+      block.position.add(block.velocity);
+    });
+  }
+
+  setInterval(spawnNeonBlock, 500);
+
+  function neonLoop() {
+    requestAnimationFrame(neonLoop);
+    updateNeonBlocks();
+  }
+
+  neonLoop();
+})();
+
+
+        // GLB Model
+        const loader = new THREE.GLTFLoader();
+        let character;
+
+        loader.load("char.glb", (gltf) => {
+            character = gltf.scene;
+            character.position.set(0, 1.5, 0);
+            character.rotation.set(0, Math.PI / 2, Math.PI / 2);
+
+            scene.add(character);
+            camera.position.set(character.position.x, character.position.y + 5, character.position.z + 10);
+            camera.lookAt(character.position);
+        });
+        
+        // Camera Controls
+        const keys = {}, movementSpeed = 0.1;
+        let cameraAngleY = 0, cameraAngleX = 0, cameraDistance = 5;
+        let isRightClickHeld = false;
+
+        window.addEventListener("mousedown", (event) => {
+            if (event.button === 2) {
+                isRightClickHeld = true;
+                event.preventDefault();
+            }
+        });
+
+        window.addEventListener("mouseup", (event) => {
+            if (event.button === 2) isRightClickHeld = false;
+        });
+
+        window.addEventListener("keydown", (e) => keys[e.key] = true);
+        window.addEventListener("keyup", (e) => keys[e.key] = false);
+
+        window.addEventListener("mousemove", (event) => {
+            if (isRightClickHeld) {
+                cameraAngleY -= event.movementX * 0.005;
+                cameraAngleX = Math.min(Math.PI / 3, Math.max(-Math.PI / 3, cameraAngleX + event.movementY * 0.005));
+            }
+        });
+
+        window.addEventListener("wheel", (event) => {
+            cameraDistance = Math.max(2, Math.min(10, cameraDistance + event.deltaY * 0.01));
+        });
+
+        // Movement Logic
+        let velocityY = 0;
+let gravity = -0.02;
+let isJumping = false;
+let animationStep = 0;
+let lastAnimationTime = 0;
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    if (character) {
+        character.rotation.z = Math.PI / 2;
+
+        const direction = new THREE.Vector3();
+        camera.getWorldDirection(direction);
+        direction.y = 0;
+        direction.normalize();
+
+        const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), direction);
+        const isMoving = keys["w"] || keys["s"] || keys["a"] || keys["d"];
+
+        if (isMoving) {
+            character.rotation.y = Math.atan2(-direction.z, direction.x);
+        }
+
+        if (keys["w"]) character.position.addScaledVector(direction, movementSpeed);
+        if (keys["s"]) character.position.addScaledVector(direction, -movementSpeed);
+        if (keys["a"]) character.position.addScaledVector(right, movementSpeed);
+        if (keys["d"]) character.position.addScaledVector(right, -movementSpeed);
+
+        // Jumping Logic
+        if (keys[" "] && !isJumping) {  
+            velocityY = 0.45;
+            isJumping = true;
+
+            character.getObjectByName("la").position.y = 1.75;
+            character.getObjectByName("ra").position.y = 1.75;
+        }
+
+        velocityY += gravity;
+        character.position.y += velocityY;
+
+        if (character.position.y <= 1.5) {
+            character.position.y = 1.5;
+            isJumping = false;
+            velocityY = 0;
+
+            character.getObjectByName("la").position.y = 1;
+            character.getObjectByName("ra").position.y = 1;
+        }
+        
+        function resetToIdlePose() {
+    const ll = character.getObjectByName("ll");
+    const rl = character.getObjectByName("rl");
+    const la = character.getObjectByName("la");
+    const ra = character.getObjectByName("ra");
+
+    if (!ll || !rl || !la || !ra) return;
+
+    ll.position.x = 0;
+    ll.rotation.z = 0;
+
+    rl.position.x = 0;
+    rl.rotation.z = 0;
+
+    la.position.x = 0;
+    la.position.z = -0.5;
+    la.rotation.z = 0;
+
+    ra.position.x = 0;
+    ra.position.z = 1;
+    ra.rotation.z = 0;
+}
+
+       if (keys["w"] || keys["a"] || keys["s"] || keys["d"]) {
+    updateWalkAnimation();
+} else {
+    resetToIdlePose();
+}
+
+
+        camera.position.set(
+            character.position.x + Math.sin(cameraAngleY) * cameraDistance,
+            character.position.y + 2 + Math.sin(cameraAngleX) * 3,
+            character.position.z + Math.cos(cameraAngleY) * cameraDistance
+        );
+        camera.lookAt(character.position);
+    }
+
+    renderer.render(scene, camera);
+}
+
+// Poses
+let targetPoses = {
+    ll: { x: 0, rotZ: 0 },
+    rl: { x: 0, rotZ: 0 },
+    la: { x: 0, rotZ: 0 },
+    ra: { x: 0, rotZ: 0 }
+};
+
+function updateWalkAnimation() {
+    if (!character) return;
+
+    const ll = character.getObjectByName("ll");
+    const rl = character.getObjectByName("rl");
+    const la = character.getObjectByName("la");
+    const ra = character.getObjectByName("ra");
+
+    if (!ll || !rl || !la || !ra) return console.error("Limb objects not found");
+
+    const currentTime = performance.now();
+    if (currentTime - lastAnimationTime > 150) {
+        lastAnimationTime = currentTime;
+        animationStep = (animationStep + 1) % 2;
+
+        switch (animationStep) {
+            case 0:
+                targetPoses.ll = { x: -0.280, rotZ: -45 };
+                targetPoses.rl = { x:  0.270, rotZ:  45 };
+                targetPoses.la = { x: -0.280, rotZ: -45 };
+                targetPoses.ra = { x:  0.270, rotZ:  45 };
+                break;
+
+            case 1:
+                targetPoses.ll = { x:  0.280, rotZ:  45 };
+                targetPoses.rl = { x: -0.270, rotZ: -45 };
+                targetPoses.la = { x:  0.280, rotZ:  45 };
+                targetPoses.ra = { x: -0.270, rotZ: -45 };
+                break;
+        }
+    }
+
+    const lerpSpeed = 0.2;
+
+    // Legs
+    ll.position.x += (targetPoses.ll.x - ll.position.x) * lerpSpeed;
+    ll.rotation.z += (THREE.MathUtils.degToRad(targetPoses.ll.rotZ) - ll.rotation.z) * lerpSpeed;
+
+    rl.position.x += (targetPoses.rl.x - rl.position.x) * lerpSpeed;
+    rl.rotation.z += (THREE.MathUtils.degToRad(targetPoses.rl.rotZ) - rl.rotation.z) * lerpSpeed;
+
+    // Arms
+    la.position.x += (targetPoses.la.x - la.position.x) * lerpSpeed;
+    la.rotation.z += (THREE.MathUtils.degToRad(targetPoses.la.rotZ) - la.rotation.z) * lerpSpeed;
+
+    ra.position.x += (targetPoses.ra.x - ra.position.x) * lerpSpeed;
+    ra.rotation.z += (THREE.MathUtils.degToRad(targetPoses.ra.rotZ) - ra.rotation.z) * lerpSpeed;
+
+
+
+        // Camera follows the character
+        camera.position.set(
+            character.position.x + Math.sin(cameraAngleY) * cameraDistance,
+            character.position.y + 2 + Math.sin(cameraAngleX) * 3,
+            character.position.z + Math.cos(cameraAngleY) * cameraDistance
+        );
+        camera.lookAt(character.position);
+    }
+
+    renderer.render(scene, camera);
+
+
+animate();
+
+
+// Load the map.glb model
+loader.load("map.glb", (gltf) => {
+    const map = gltf.scene;
+    map.position.set(0, -0.5, 0); // Adjust position as needed
+    scene.add(map);
+});
+
+const skyGeo = new THREE.SphereGeometry(100, 32, 32); // 100 radius
+const skyMat = new THREE.MeshBasicMaterial({
+    map: new THREE.TextureLoader().load('sky3.png'),
+    side: THREE.BackSide
+});
+const skySphere = new THREE.Mesh(skyGeo, skyMat);
+scene.add(skySphere);
+    
+window.addEventListener("DOMContentLoaded", () => {
+    if (localStorage.getItem("hatAdded") === "true" && character) {
+        const loader = new THREE.GLTFLoader();
+        loader.load("devi.glb", (gltf) => {
+            const accessory = gltf.scene;
+             accessory.position.set(1.12, 0, 0.0138); // Adjust height for head placement
+            accessory.rotation.set(0, Math.PI / 2, 0); // Rotates 90 degrees on the Y-axis
+            accessory.name = "devi"; // Name it for later removal
+            character.add(accessory);
+        });
+    }
+});
+
+// Remove the hat if "hatAdded" is set to false
+document.getElementById("removeAccessory").addEventListener("click", () => {
+    if (character) {
+        const hat = character.getObjectByName("devi");
+        if (hat) {
+            character.remove(hat);
+            localStorage.setItem("hatAdded", "false"); // Update storage so it doesn't reappear
+        }
+    }
+});
+
+
+loader.load("walktest.glb", (gltf) => {
+    const walkTestModel = gltf.scene;
+    walkTestModel.position.set(0, 1.5, 0); // Adjust positioning if needed
+    scene.add(walkTestModel);
+});
+
+</script>
+    <script>
+    window.addEventListener("contextmenu", e => e.preventDefault());
+</script>
+</body>
+</html>
